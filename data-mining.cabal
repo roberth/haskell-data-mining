@@ -1,0 +1,26 @@
+-- TODO: rename project
+Name:                data-mining
+Version:             0.0.0.0
+Build-Type:          Simple
+License:             MIT
+Copyright:           Robert Hensing, Hidde Verstoep
+License-file:        LICENSE
+Author:              Robert Hensing, Hidde Verstoep
+Maintainer:          Robert Hensing (Hidde?)
+Stability:           experimental
+-- Homepage:         http://todo
+-- Bug-reports:         mailto:
+Synopsis:            Flexible data mining framework and algorithms.
+Cabal-Version:       >=1.4
+Description:         TODO...
+Category:            Data Mining
+
+Library
+  hs-source-dirs:    src
+
+  Build-Depends:     base >= 4.2 && <5
+
+  Exposed-modules:   Data.Mining.Primitives
+                     Data.Mining.Classification
+                     Data.Mining.ItemSet
+                     Data.Mining.DataInterface
