@@ -27,7 +27,7 @@ class GenSep attr separator | attr -> separator where
 
 gensepOrd :: (Ord attr) => [attr] -> [SepOrd attr]
 gensepOrd db = map SepOrd $ filter (/= minimum db) db
- gensepEq :: (Ord attr) => [attr] -> [SepSet attr]
+gensepEq :: (Ord attr) => [attr] -> [SepSet attr]
 gensepEq db = map SepSet $ subsequences {- ;) -} $ uniqSort db
 
 instance GenSep Double (SepOrd Double) where gensep = gensepOrd
