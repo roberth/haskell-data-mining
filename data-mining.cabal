@@ -18,7 +18,10 @@ Category:            Data Mining
 Library
   hs-source-dirs:    src
 
-  Build-Depends:     base >= 4.2 && <5
+
+  Build-Depends:     base >= 4.2 && <5,
+                     QuickCheck,
+                     haskell98
 
   Exposed-modules:   Data.Mining.Primitives
                      Data.Mining.Classification
