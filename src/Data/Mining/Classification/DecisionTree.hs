@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Data.Mining.Classification.DecisionTree where
 import Data.List
 import Data.Ratio
@@ -20,6 +21,10 @@ instance (Ord attr) => Separator (SepOrd attr) attr Bool where
 instance (Eq attr) => Separator (SepSet attr) attr Bool where
     split (SepSet set) at = at `elem` set
 
+instance (Separator sepa attra label, Separator sepb attrb label) =>
+	  Separator (Either sepa sepb) (attra, attrb) label where
+    split (Left sep) = split sep . fst
+    split (Right sep) = split sep . snd
 
 class GenSep attr separator | attr -> separator where
     gensep :: [attr] -> [separator]
@@ -33,10 +38,16 @@ gensepEq db = map SepSet $ subsequences {- ;) -} $ uniqSort db
 instance GenSep Double (SepOrd Double) where gensep = gensepOrd
 instance GenSep Float (SepOrd Float) where gensep = gensepOrd
 instance GenSep Int (SepOrd Int) where gensep = gensepOrd
+instance GenSep Integer (SepOrd Integer) where gensep = gensepOrd
 instance (Integral a) => GenSep (Ratio a) (SepOrd (Ratio a)) where gensep = gensepOrd
 
 instance GenSep Char (SepSet Char) where gensep = gensepEq
 instance GenSep [Char] (SepSet [Char]) where gensep = gensepEq
+
+instance (GenSep a xa, GenSep b xb) =>
+          GenSep (a,b)   (Either a b)
+  where gensep (Left s) = gensep s . fst
+        gensep (Right t) = gensep t . snd
 
 uniqSort :: (Ord a) => [a] -> [a]
 uniqSort = map head . group . sort
@@ -47,6 +58,15 @@ prop_uniqSortIsNubSort a = uniqSort a == nub (sort a)
 
 --splits :: (GenSep attr sep, Separator sep attr label) => [attr] -> x [[(label, [attr])]]
 --splits db = map aggregateAL [map (id &&& split sep) db | sep <- gensep db]
+
+
+--splits :: (Separator sep attr dist, Ord dist, GenSep attr dist) =>
+--        (value -> attr) -> [value] -> [[(dist, [value])]]
+splits :: (Ord label, GenSep attr t, Separator t attr label) =>
+     (a -> attr) -> [a] -> [[(label, [a])]]
+splits toattr db = map aggregateAL
+         [map ((split sep . toattr) &&& id) db
+          | sep <- gensep (map toattr db)]
 
 aggregate :: (Ord a) => [a] -> [[a]]
 aggregate = aggregateBy compare
@@ -68,3 +88,6 @@ nrange f (a, b) = let sum = fromIntegral $ a + b
                   in fromIntegral a / sum
 
 gini = nrange $ \a -> (a * (1.0 - a))
+
+db1 :: [(Int, Char)]
+db1 = [(12345,'c'),(1,'a'),(2345,'b'),(13,'a'),(451,'a'),(235,'b'),(46,'a'),(4,'a'),(235,'b'),(425,'b'),(436,'b'),(324,'b')]
