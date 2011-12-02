@@ -1,65 +1,79 @@
 {- http://www.codeproject.com/KB/recipes/AprioriAlgorithm.aspx -}
-module Rules where
+module Main where
 
 import Data.List
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Set (Set)
 import qualified Data.Set as S
+import Control.Monad.Random
+import Control.Applicative
+import Control.Parallel.Strategies
+import Control.DeepSeq
 
-type Item = Int
+type Transaction a = Set a
+type Items a = Set a
 
-type Transaction = Set Item
-type ItemSet = Set Item
+instance (NFData a) => NFData (Set a) where  
+  rnf = rnf . S.toList
+  
+instance (NFData a, NFData b) => NFData (Map a b) where
+  rnf = rnf . M.toList
+  
+class (Ord a, NFData a) => Item a where
 
-items :: [Transaction] -> [ItemSet]
-items = (map S.singleton) . S.toList . S.unions
+instance Item Int
 
-join :: Eq a => Int -> [[a]] -> [[a]]
-join n ls = concat $ map join' $ groupBy (\a b->take n a == take n b) ls where
+join :: Eq a => [[a]] -> [[a]]
+join ls = concat $ map join' $ groupBy (\a b->init a == init b) ls where
   join' [] = []
-  join' (x:xs) = [ x ++ [y] | y <- map (!! n) xs ] ++ join' xs
+  join' (x:xs) = [ x ++ [y] | y <- map last xs ] ++ join' xs
+{-  
+frequency :: Item a => [Transaction a] -> [Items a] -> Map (Items a) Int
+frequency ts iss = M.fromList (map (\is -> (is, foldr (frequency' is) 0 ts)) iss `using` parList rdeepseq) where
+  frequency' is t = if is `S.isSubsetOf` t then succ else id
+-}  
+frequency :: Item a => [Transaction a] -> [Items a] -> Map (Items a) Int
+frequency ts iss = M.fromList (map (\is -> (is, sum (map (frequency' is) ts))) iss `using` parList rdeepseq) where
+  frequency' is t = if is `S.isSubsetOf` t then 1 else 0
 
-frequency :: [Transaction] -> [ItemSet] -> Map ItemSet Int
-frequency ts is = foldr (\a b -> foldr (frequency' a) b is) (M.fromList $ zip is $ repeat 0) ts where
-  frequency' :: Transaction -> ItemSet -> Map ItemSet Int -> Map ItemSet Int
-  frequency' t i = if i `S.isSubsetOf` t then M.adjust (+ 1) i else id
+frequentsets :: Item a => [Transaction a] -> Items a -> Int -> Map (Items a) Int
+frequentsets ts is support = M.unions $ takeWhile (/= M.empty) $ map l [0..] where
+  l = (M.filter (>= support)) . (frequency ts) . c
+  c 0 = map S.singleton $ S.toAscList is
+  c n = join' (M.keys $ l (n-1))
+  join' = (map S.fromAscList) . join . (map S.toAscList)
 
-prune :: Int -> Map ItemSet Int -> Map ItemSet Int
-prune i = M.filter (>= i)
-
-frequentsets :: [Transaction] -> Int -> Map ItemSet Int
-frequentsets ts support = M.unions $ takeWhile (/= M.empty) $ map l [0..] where
-  l n = prune support (c n)
-  c 0 = frequency ts (items ts)
-  c n = frequency ts (join' (n-1) (M.keys $ l (n-1)))
-  join' n = (map S.fromList) . (join n) . (map S.toList)
-
-split :: ItemSet -> [(ItemSet, ItemSet)]
+split :: Item a => Items a -> [(Items a, Items a)]
 split = (map (\(a,b)->(S.fromList a, S.fromList b))) . split' . S.toList where
-  split' :: [Item] -> [([Item], [Item])]
   split' = init . tail . split'' where
     split'' [] = [([],[])]
     split'' (x:ys) = foldr (\(a,b) r -> (x:a,b):(a,x:b):r) [] (split'' ys)
 
-possiblerules :: [ItemSet] -> [(ItemSet, ItemSet)]
-possiblerules = concat . (map split)
+possiblerules :: Item a => [Items a] -> [(Items a, Items a)]
+possiblerules = concat . (map Main.split)
 
-rules :: [Transaction] -> Int -> Double -> Map (ItemSet, ItemSet) Double
-rules ts support confidence = M.fromList $ filter (\(_,b) -> b >= confidence) $ map (\a -> (a, conf a)) $ possiblerules (M.keys fs) where 
-  fs = frequentsets ts support
+rules :: Item a => [Transaction a] -> Items a -> Int -> Map (Items a, Items a) Double
+rules ts is support = M.fromList $ map (\a -> (a, conf a)) $ possiblerules (M.keys fs) where 
+  fs = frequentsets ts is support
   conf (a,b) = (fromIntegral $ fs M.! (a `S.union` b)) / (fromIntegral $ fs M.! a)
 
 -- example
 
-newtype Rule = Rule ([Item], [Item])
-
-instance Show Rule where
-  show (Rule (a, b)) = show a ++ " -> " ++ show b
-
-transactions :: [Transaction]
+{-
+transactions :: [Transaction Int]
 transactions = map S.fromList [[1,3,4],[2,3,5],[1,2,3,5],[2,5]]
 
-readable = (map (\((a,b),_) -> Rule (S.toList a, S.toList b))) . M.toList
+main = print $ M.filter (>= 0.8) $ rules transactions (S.fromAscList [1..5]) 2
+-}
 
-main = print $ readable $ rules transactions 2 0.8
+--{-
+ts :: (MonadRandom m, Applicative m) => Int -> m [Transaction Int]
+ts n = fmap (map S.fromList) $ sequence $ take n $ repeat (take <$> getRandomR (2,20) <*> getRandomRs (1,n))
+
+test n = do
+  transactions <- ts n
+  return $ rules transactions (S.fromAscList [1..n]) 15
+
+main = test 1000 >>= print
+--}
