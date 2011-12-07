@@ -40,11 +40,21 @@
 --                                     True: Label A
 --        True: Label A
 --
+-- A proper demonstration with separate training and evaluation data:
+--
+-- >>> let db2odd = map snd $ filter (odd . fst) $ zip nat db2
+-- >>> let db2even = map snd $ filter (even . fst) $ zip nat db2
+-- >>> let tree = buildDTree fst snd db2odd 
+-- >>> map ((classify tree . fst) &&& snd) db2
+-- [(A,A),(A,A),(A,A),(A,A),(A,A),(A,A),(A,A),(A,A),(B,B),(B,B),(B,B),(A,B),(B,B),(A,B),(B,B),(B,B),(C,C),(C,C),(C,C),(C,C),(C,C),(C,C),(C,C),(C,C)]
+--
 
 module Data.Mining.Classification.DecisionTree where
 import Data.Mining.Utilities
+import Data.Mining.Classification.Class
 import Data.List
 import Data.Ratio
+import Data.Maybe
 import Control.Arrow hiding ((<+>))
 import Text.PrettyPrint ((<>),Doc,text,($+$),nest,empty)
 
@@ -127,8 +137,33 @@ rateSplits toattr tolabel db = map (\sep -> (sep,) $ measureImpurity tolabel $ d
 data DTree sep result label = Node sep [(result, DTree sep result label)]
                      | Leaf label
                        deriving (Show, Eq)
+                                
+data DTreeAlgebra sep result label a =
+  DTreeAlgebra { fleaf :: label -> a
+               , fnode :: sep -> [(result, a)] -> a
+               }
 
-compareSnd (_,a) (_,b) = compare a b
+foldD :: DTreeAlgebra sep result label a -> DTree sep result label -> a
+foldD (DTreeAlgebra fleaf _) (Leaf label) = fleaf label
+foldD a@(DTreeAlgebra _ fnode) (Node sep children) = fnode sep $ map (second (foldD a)) children
+
+--decideAlgebra :: DTreeAlgebra 
+predictAlgebra :: (Separator sep attr result, Eq result) =>
+                  attr -> DTreeAlgebra sep result label label
+predictAlgebra newobservation = DTreeAlgebra { fleaf = fleaf, fnode = fnode }
+ where
+   fleaf = id
+   fnode sep children = error "Incomplete tree"
+           `fromMaybe` lookup (split sep newobservation) children
+
+predict :: (Separator sep attr result, Eq result) =>
+           attr -> DTree sep result a -> a
+predict a = foldD (predictAlgebra a)
+
+instance (Separator sep attr result, Eq result) => Classifier (DTree sep result label) attr label where
+  classify = flip predict
+  
+compareSnd = compareBy snd
 compareBy f a b = compare (f a) (f b)
 
 majority :: (Ord a) => [a] -> a

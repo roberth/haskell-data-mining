@@ -12,5 +12,9 @@
 -- (<https://en.wikipedia.org/wiki/Classification_in_machine_learning>,
 -- Nov 28 2011)
 
-module Data.Mining.Classification (module Data.Mining.Classification.DecisionTree) where
+module Data.Mining.Classification
+       ( module Data.Mining.Classification.DecisionTree
+       , module Data.Mining.Classification.Class
+       ) where
 import Data.Mining.Classification.DecisionTree
+import Data.Mining.Classification.Class
