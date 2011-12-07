@@ -21,9 +21,11 @@ Library
 
   Build-Depends:     base >= 4.2 && <5,
                      QuickCheck,
+                     pretty >= 1.1,
                      haskell98
 
   Exposed-modules:   Data.Mining.Primitives
                      Data.Mining.Classification
                      Data.Mining.ItemSet
                      Data.Mining.DataInterface
+                     Data.Mining.Examples

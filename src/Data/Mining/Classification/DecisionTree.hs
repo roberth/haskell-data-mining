@@ -2,13 +2,59 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TupleSections #-}
+-- |
+--
+--
+-- Decision tree learning, used in statistics, data mining and machine
+-- learning, uses a decision tree as a predictive model which maps
+-- observations about an item to conclusions about the item's target
+-- value. In these tree structures, leaves represent class labels and
+-- branches represent conjunctions of features that lead to those
+-- class labels.
+--
+-- In data mining, a decision tree describes data but not decisions;
+-- rather the resulting classification tree can be an input for
+-- decision making.
+--
+-- (<https://en.wikipedia.org/wiki/Decision_tree_learning>,
+-- Dec 6 2011)
+--
+-- An example:
+--
+-- >>> :m Data.Mining.Examples Data.Mining.Classification.DecisionTree
+-- >>> prettyDTree $ buildDTree fst snd db2
+-- Node Left (SepOrd 9)
+--  False: Label C
+--  True: Node Right (SepOrd 30)
+--        False: Node Right (SepOrd 68)
+--                False: Label B
+--                True: Node Left (SepOrd 5)
+--                       False: Node Right (SepOrd 66)
+--                               False: Label C
+--                               True: Label B
+--                       True: Node Left (SepOrd 3)
+--                              False: Label A
+--                              True: Node Left (SepOrd 2)
+--                                     False: Label B
+--                                     True: Label A
+--        True: Label A
+--
+
 module Data.Mining.Classification.DecisionTree where
+import Data.Mining.Utilities
 import Data.List
 import Data.Ratio
-import Control.Arrow
+import Control.Arrow hiding ((<+>))
+import Text.PrettyPrint ((<>),Doc,text,($+$),nest,empty)
 
-class Separator separator attr label | separator -> attr label where
-    split :: separator -> attr -> label
+-- | @separator@ defines the type and semantics of a split. Example: \"attr < 20\".
+--
+-- The separator bins values of type @attr@.
+-- The bins are identified with values of type @result@.
+class Separator separator attr result | separator -> attr result where
+    -- | Distinguish values of type @attr@ using @separator@.
+    split :: separator -> attr -> result
 
 data (Ord t) => SepOrd t = SepOrd t
      deriving (Show, Read)
@@ -21,19 +67,24 @@ instance (Ord attr) => Separator (SepOrd attr) attr Bool where
 instance (Eq attr) => Separator (SepSet attr) attr Bool where
     split (SepSet set) at = at `elem` set
 
-instance (Separator sepa attra label, Separator sepb attrb label) =>
-	  Separator (Either sepa sepb) (attra, attrb) label where
+instance (Separator sepa attra result, Separator sepb attrb result) =>
+	  Separator (Either sepa sepb) (attra, attrb) result where
     split (Left sep) = split sep . fst
     split (Right sep) = split sep . snd
 
+-- | GenSep is used to generate possible splits based on actual attributes
 class GenSep attr separator | attr -> separator where
     gensep :: [attr] -> [separator]
 
-
+-- | @gensep@ implementation for any ordered data, considers all possible @(<= pivot)@s.
 gensepOrd :: (Ord attr) => [attr] -> [SepOrd attr]
 gensepOrd db = map SepOrd $ filter (/= minimum db) db
+
+-- | @gensep@ implementation for any categorical data, considers all possible sets.
+-- | todo: also implement (==) operator
 gensepEq :: (Ord attr) => [attr] -> [SepSet attr]
 gensepEq db = map SepSet $ subsequences {- ;) -} $ uniqSort db
+
 
 instance GenSep Double (SepOrd Double) where gensep = gensepOrd
 instance GenSep Float (SepOrd Float) where gensep = gensepOrd
@@ -49,77 +100,59 @@ instance (GenSep a xa, GenSep b xb) =>
   where gensep v = (map Left . gensep . map fst) v ++
                   (map Right . gensep . map snd) v
 
-uniqSort :: (Ord a) => [a] -> [a]
-uniqSort = map head . group . sort
+doSplit :: (Separator separator attr result, Ord result) =>
+     (x -> attr) -> separator -> [x] -> [(result, [x])]
+doSplit toattr sep = aggregateAL . map ((split sep . toattr) &&& id)
 
-prop_uniqSortIsNubSort a = uniqSort a == nub (sort a)
-                       where types = a :: [Int]
--- TODO size constraint (complexity :( )
+doLabel :: (Ord label) => (x -> label) -> [x] -> [(label, [x])]
+doLabel tolabel = aggregateAL . map (tolabel &&& id)
 
---splits :: (GenSep attr sep, Separator sep attr label) => [attr] -> x [[(label, [attr])]]
---splits db = map aggregateAL [map (id &&& split sep) db | sep <- gensep db]
+measureImpurity :: (Ord label) => (attr -> label) -> [(result, [attr])] -> Double
+measureImpurity tolabel = f . impurityAndCounts
+  where f :: [(Double, Int)] -> Double
+        f = sum . map (uncurry (*) . second fromIntegral)
+        impu = gini . map (length . snd) . doLabel tolabel
+        impurityAndCounts = map ((impu &&& length) . snd)
 
+rateSplits :: (Separator separator attr result,
+              GenSep attr separator,
+              Ord result,
+              Ord label)
+  => (x -> attr)
+  -> (x -> label)
+  -> [x]
+  -> [(separator, Double)]
+rateSplits toattr tolabel db = map (\sep -> (sep,) $ measureImpurity tolabel $ doSplit toattr sep db) . gensep . map toattr $ db
+                   
+data DTree sep result label = Node sep [(result, DTree sep result label)]
+                     | Leaf label
+                       deriving (Show, Eq)
 
---splits :: (Separator sep attr dist, Ord dist, GenSep attr dist) =>
---        (value -> attr) -> [value] -> [[(dist, [value])]]
-splits :: (Ord label, GenSep attr t, Separator t attr label) =>
-     (a -> attr) -> [a] -> [[(label, [a])]]
-splits toattr db = map aggregateAL
-         [map ((split sep . toattr) &&& id) db
-          | sep <- gensep (map toattr db)]
+compareSnd (_,a) (_,b) = compare a b
+compareBy f a b = compare (f a) (f b)
 
-aggregate :: (Ord a) => [a] -> [[a]]
-aggregate = aggregateBy compare
+majority :: (Ord a) => [a] -> a
+majority = head . maximumBy (compareBy length) . aggregate
 
-aggregateBy :: (a -> a -> Ordering) -> [a] -> [[a]]
-aggregateBy x = groupBy (\a b -> x a b == EQ) . sortBy x
+buildDTree toattr tolabel db = case rateSplits toattr tolabel db of
+  [] -> case db of
+    [] -> error "Empty db"
+    db -> Leaf . majority . map tolabel $ db
+  splits -> case uniqSort (map tolabel db) of
+    [x] -> Leaf x
+    _ -> let 
+            (best, _) = minimumBy compareSnd splits
+            subdbs = doSplit toattr best db
+        in Node best $ map (second (buildDTree toattr tolabel)) subdbs
 
--- | Aggregate an association list
-aggregateAL :: (Ord a) => [(a,b)] -> [(a,[b])]
-aggregateAL = map (fst . head &&& map snd) . aggregateBy (\a b -> compare (fst a) (fst b))
--- TODO quickcheck
+prettyDTree :: (Show sep, Show res, Show lab) => DTree sep res lab -> Doc
+prettyDTree (Node sep children) = text "Node " <> text (show sep)
+                      $+$ nest 3 (
+                      foldr ($+$) empty (map printChild children)
+                      )
+  where printChild = uncurry (<>) . first (text . (++": ") .  show) . second (prettyDTree)
 
+prettyDTree (Leaf x) = text "Label " <> text (show x)
 
-impurity :: ((Int, Int) -> Double) -> [Bool] -> Double
-impurity measure = measure . first length . second length . partition id
-
-nrange :: (Double -> Double) -> ((Int, Int) -> Double)
-nrange f (a, b) = let sum = fromIntegral $ a + b
-                  in fromIntegral a / sum
-
-gini = nrange $ \a -> (a * (1.0 - a))
-
-db1 :: [(Int, Char)]
-db1 = [(12345,'c'),(1,'a'),(2345,'b'),(13,'a'),(451,'a'),(235,'b'),(46,'a'),(4,'a'),(235,'b'),(425,'b'),(436,'b'),(324,'b')]
-
-data MyClass = A | B | C
-                       deriving (Eq, Ord, Show)
-
-db2 :: [((Int, Int), MyClass)]
-db2 = [ ((4, 30), A)
-      , ((5,  9), A)
-      , ((1, 54), A)
-      , ((4,  6), A)
-      , ((0,  6), A)
-      , ((5, 10), A)
-      , ((4, 26), A)
-      , ((3, 51), A)
-        
-      , ((0, 77), B)
-      , ((3, 80), B)
-      , ((7, 51), B)
-      , ((2, 30), B)
-      , ((9, 77), B)
-      , ((5, 33), B)
-      , ((7, 48), B)
-      , ((3, 76), B)
-        
-      , (( 5, 66), C)
-      , ((11, 48), C)
-      , ((13, 68), C)
-      , ((11, 39), C)
-      , ((14, 47), C)
-      , (( 9, 50), C)
-      , (( 9, 39), C)
-      , (( 9, 61), C)
-      ]
+gini :: (Integral i, Fractional f) => [i] -> f
+gini = sum . map (\x -> x * (1 - x)) . relFreq
