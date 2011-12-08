@@ -21,7 +21,7 @@ Library
 
   Build-Depends:     base >= 4.2 && <5,
                      QuickCheck,
-                     pretty >= 1.1,
+                     pretty >= 1.0.1.1,
                      haskell98
 
   Exposed-modules:   Data.Mining.Primitives
