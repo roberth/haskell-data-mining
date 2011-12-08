@@ -167,19 +167,22 @@ predictAlgebra newobservation = DTreeAlgebra { fleaf = fleaf, fnode = fnode }
    fnode sep children = error "Incomplete tree"
            `fromMaybe` lookup (split sep newobservation) children
 
+-- | Use a DTree to predict the class label of a (possibly) yet unseen object.
 predict :: (Separator sep attr result, Eq result) =>
            attr -> DTree sep result a -> a
 predict a = foldD (predictAlgebra a)
 
 instance (Separator sep attr result, Eq result) => Classifier (DTree sep result label) attr label where
   classify = flip predict
-  
-compareSnd = compareBy snd
-compareBy f a b = compare (f a) (f b)
 
-majority :: (Ord a) => [a] -> a
-majority = head . maximumBy (compareBy length) . aggregate
-
+-- | Learn a Decision Tree classifier based on a list of observations.
+buildDTree :: (Ord label, Ord result,
+      GenSep attr sep,
+      Separator sep attr result) =>
+     (x -> attr) ->
+     (x -> label) ->
+     [x] ->
+     DTree sep result label
 buildDTree toattr tolabel window = case rateSplits toattr tolabel window of
   [] -> case window of
     [] -> error "Empty window"
@@ -191,14 +194,15 @@ buildDTree toattr tolabel window = case rateSplits toattr tolabel window of
             subwins = doSplit toattr best window
         in Node best $ map (second (buildDTree toattr tolabel)) subwins
 
+-- | Pretty-print a decision tree. Indentation relates to depth.
 prettyDTree :: (Show sep, Show res, Show lab) => DTree sep res lab -> Doc
 prettyDTree (Node sep children) = text "Node " <> text (show sep)
                       $+$ nest 3 (
                       foldr ($+$) empty (map printChild children)
                       )
   where printChild = uncurry (<>) . first (text . (++": ") .  show) . second (prettyDTree)
-
 prettyDTree (Leaf x) = text "Label " <> text (show x)
 
+-- | Calculate the gini impurity based on the real class label frequencies.
 gini :: (Integral i, Fractional f) => [i] -> f
 gini = sum . map (\x -> x * (1 - x)) . relFreq
