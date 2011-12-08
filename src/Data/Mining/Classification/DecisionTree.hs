@@ -58,7 +58,7 @@ import Data.Maybe
 import Control.Arrow hiding ((<+>))
 import Text.PrettyPrint ((<>),Doc,text,($+$),nest,empty)
 
--- | @separator@ defines the type and semantics of a split. Example: \"attr < 20\".
+-- | @separator@ defines the type and semantics of a split. Example: \"attr <= 20\".
 --
 -- The separator bins values of type @attr@.
 -- The bins are identified with values of type @result@.
@@ -72,7 +72,8 @@ data (Eq t) => SepSet t = SepSet [t]
      deriving (Show, Read)
 
 instance (Ord attr) => Separator (SepOrd attr) attr Bool where
-    split (SepOrd pivot) at = at < pivot
+    split (SepOrd pivot) at = at <= pivot
+        -- <= is easier than < in presence of round-down
 
 instance (Eq attr) => Separator (SepSet attr) attr Bool where
     split (SepSet set) at = at `elem` set
@@ -88,19 +89,29 @@ class GenSep attr separator | attr -> separator where
 
 -- | @gensep@ implementation for any ordered data, considers all possible @(<= pivot)@s.
 gensepOrd :: (Ord attr) => [attr] -> [SepOrd attr]
-gensepOrd db = map SepOrd $ filter (/= minimum db) db
+gensepOrd window = map SepOrd $ filter (/= maximum window) window
+
+-- | @gensep@ implementation for any ordered data, considers all possible @(<= pivot)@s.
+gensepOrdAvg :: (Ord attr) => (attr -> attr -> attr) -> [attr] -> [SepOrd attr]
+gensepOrdAvg favg window = map SepOrd $ zipWith favg window' (tail window')
+        where window' = uniqSort window
 
 -- | @gensep@ implementation for any categorical data, considers all possible sets.
 -- | todo: also implement (==) operator
 gensepEq :: (Ord attr) => [attr] -> [SepSet attr]
-gensepEq db = map SepSet $ subsequences {- ;) -} $ uniqSort db
+gensepEq window = map SepSet $ subsequences {- ;) -} $ uniqSort window
 
+avgF :: (Fractional a) => a -> a -> a
+avgF a b = (a+b) / 2
 
-instance GenSep Double (SepOrd Double) where gensep = gensepOrd
-instance GenSep Float (SepOrd Float) where gensep = gensepOrd
-instance GenSep Int (SepOrd Int) where gensep = gensepOrd
-instance GenSep Integer (SepOrd Integer) where gensep = gensepOrd
-instance (Integral a) => GenSep (Ratio a) (SepOrd (Ratio a)) where gensep = gensepOrd
+avgI :: (Integral a) => a -> a -> a
+avgI a b = (a+b) `div` 2
+
+instance GenSep Double (SepOrd Double) where gensep = gensepOrdAvg avgF
+instance GenSep Float (SepOrd Float) where gensep = gensepOrdAvg avgF
+instance GenSep Int (SepOrd Int) where gensep = gensepOrdAvg avgI
+instance GenSep Integer (SepOrd Integer) where gensep = gensepOrdAvg avgI
+instance (Integral a) => GenSep (Ratio a) (SepOrd (Ratio a)) where gensep = gensepOrdAvg avgF
 
 instance GenSep Char (SepSet Char) where gensep = gensepEq
 instance GenSep [Char] (SepSet [Char]) where gensep = gensepEq
@@ -132,7 +143,7 @@ rateSplits :: (Separator separator attr result,
   -> (x -> label)
   -> [x]
   -> [(separator, Double)]
-rateSplits toattr tolabel db = map (\sep -> (sep,) $ measureImpurity tolabel $ doSplit toattr sep db) . gensep . map toattr $ db
+rateSplits toattr tolabel window = map (\sep -> (sep,) $ measureImpurity tolabel $ doSplit toattr sep window) . gensep . map toattr $ window
                    
 data DTree sep result label = Node sep [(result, DTree sep result label)]
                      | Leaf label
@@ -169,16 +180,16 @@ compareBy f a b = compare (f a) (f b)
 majority :: (Ord a) => [a] -> a
 majority = head . maximumBy (compareBy length) . aggregate
 
-buildDTree toattr tolabel db = case rateSplits toattr tolabel db of
-  [] -> case db of
-    [] -> error "Empty db"
-    db -> Leaf . majority . map tolabel $ db
-  splits -> case uniqSort (map tolabel db) of
+buildDTree toattr tolabel window = case rateSplits toattr tolabel window of
+  [] -> case window of
+    [] -> error "Empty window"
+    window -> Leaf . majority . map tolabel $ window
+  splits -> case uniqSort (map tolabel window) of
     [x] -> Leaf x
     _ -> let 
             (best, _) = minimumBy compareSnd splits
-            subdbs = doSplit toattr best db
-        in Node best $ map (second (buildDTree toattr tolabel)) subdbs
+            subwins = doSplit toattr best window
+        in Node best $ map (second (buildDTree toattr tolabel)) subwins
 
 prettyDTree :: (Show sep, Show res, Show lab) => DTree sep res lab -> Doc
 prettyDTree (Node sep children) = text "Node " <> text (show sep)
