@@ -23,23 +23,20 @@ type Items a = Set a
 instance (NFData a) => NFData (Set a) where  
   rnf = rnf . S.toList
   
-instance (NFData a, NFData b) => NFData (Map a b) where
-  rnf = rnf . M.toList
-  
 class (Ord a, NFData a) => Item a where
 
 instance Item Int
 
-{-# SPECIALIZE frequencyBy :: (Set Int -> Set Int -> Bool) -> [Set Int] -> [Set Int] -> [(Set Int, Int)] #-}
-frequencyBy :: NFData a => (a -> b -> Bool) -> [a] -> [b] -> [(a,Int)]
-frequencyBy f as bs = 
-  map (\a ->(a, foldr (\b -> if f a b then (+) 1 else id) 0 bs)) as `using` 
-    parListChunk 100 rdeepseq
+{-# SPECIALIZE rules :: [Transaction Int] -> Items Int -> (Map (Items Int) Int -> Map (Items Int) Int) -> Map (Items Int, Items Int) Double #-}
+rules :: Item a => [Transaction a] -> Items a -> (Map (Items a) Int -> Map (Items a) Int) -> Map (Items a, Items a) Double
+rules ts is f = M.fromList $ map (\a -> (a, conf a)) $ possiblerules fs where 
+  {-# SPECIALIZE frequencyBy :: (Set Int -> Set Int -> Bool) -> [Set Int] -> [Set Int] -> [(Set Int, Int)] #-}
+  frequencyBy :: NFData a => (a -> b -> Bool) -> [a] -> [b] -> [(a,Int)]
+  frequencyBy f as bs = 
+    map (\a ->(a, foldr (\b -> if f a b then (+) 1 else id) 0 bs)) as `using` 
+      parListChunk 100 rdeepseq
 
-{-# SPECIALIZE rules :: [Transaction Int] -> Items Int -> Int -> Map (Items Int, Items Int) Double #-}
-rules :: Item a => [Transaction a] -> Items a -> Int -> Map (Items a, Items a) Double
-rules ts is support = M.fromList $ map (\a -> (a, conf a)) $ possiblerules (M.keys fs) where 
-  fs = frequentsets ts is support
+  fs = frequentsets ts is f
   conf (a,b) = (fromIntegral $ fs M.! (a `S.union` b)) / (fromIntegral $ fs M.! a)
   
   join :: Eq a => [[a]] -> [[a]]
@@ -48,11 +45,11 @@ rules ts is support = M.fromList $ map (\a -> (a, conf a)) $ possiblerules (M.ke
     join' (x:xs) = [ x ++ [y] | y <- map last xs ] ++ join' xs
       
   frequency :: Item a => [Transaction a] -> [Items a] -> Map (Items a) Int
-  frequency ts iss = M.fromList $ (frequencyBy S.isSubsetOf iss ts )
+  frequency ts iss = M.fromAscList $ (frequencyBy S.isSubsetOf iss ts )
 
-  frequentsets :: Item a => [Transaction a] -> Items a -> Int -> Map (Items a) Int
-  frequentsets ts is support = M.unions $ takeWhile (/= M.empty) $ map l [0..] where
-    l = (M.filter (>= support)) . (frequency ts) . c
+  frequentsets :: Item a => [Transaction a] -> Items a -> (Map (Items a) Int -> Map (Items a) Int) -> Map (Items a) Int
+  frequentsets ts is f = M.unions $ takeWhile (/= M.empty) $ map l [0..] where
+    l = f . (frequency ts) . c
     c 0 = map S.singleton $ S.toAscList is
     c n = join' (M.keys $ l (n-1))
     join' = (map S.fromAscList) . join . (map S.toAscList)
@@ -63,8 +60,8 @@ rules ts is support = M.fromList $ map (\a -> (a, conf a)) $ possiblerules (M.ke
       split'' [] = [([],[])]
       split'' (x:ys) = foldr (\(a,b) r -> (x:a,b):(a,x:b):r) [] (split'' ys)
 
-  possiblerules :: Item a => [Items a] -> [(Items a, Items a)]
-  possiblerules = concat . (map split)
+  possiblerules :: Item a => Map (Items a) Int -> [(Items a, Items a)]
+  possiblerules fs = filter (\(a,b)->a `M.member` fs && b `M.member` fs) $ concat $ map split $ (M.keys fs)
 
 -- example
 
@@ -72,9 +69,14 @@ loadDataSet :: String -> IO [Transaction Int]
 loadDataSet filename = do
   filedata <- readFile filename
   return $ map (S.fromList . (map read) . words) (lines filedata)
+  
+top :: Item a => ([(Items a, Int)] -> [(Items a, Int)]) -> Map (Items a) Int -> Map (Items a) Int
+top f m = M.fromList $ f $ sortBy (\(_,a) (_,b) -> compare b a) $ M.toList m 
 
-test n = do
+test = do
   transactions <- loadDataSet "T10I4D100K.dat"
-  return $ rules (drop 90000 transactions) (S.fromAscList [1..n]) 125
+  let items = S.unions transactions
+      res = rules transactions items (top ((take 40) . (filter (\(_,a)->a>= 60))))
+  return $ takeWhile (\(_,a)->a > 0.5) $ sortBy (\(_,a) (_,b) -> compare b a) $ M.toList res
 
-main = test 1000 >>= print
+main = test >>= print
