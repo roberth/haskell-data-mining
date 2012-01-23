@@ -36,6 +36,7 @@
 \section{Decision Trees}
 
 \begin{frame}{Decision Trees}
+\subsection{Defining classification}
 
 \begin{center}A classification method\end{center}
 
@@ -97,14 +98,43 @@ Tasks
 
 Many types
 \begin{itemize}
-  \item Attribute \uncover<1->{-- no}
-  \item Class label \uncover<1->{-- no}
-  \item Separators \uncover<2->{-- yes, but ambiguous}
-  \item Separator labels \uncover<2->{-- yes, depend on Separators}
-  \item Decision tree \uncover<2->{-- yes, depend on all above}
+  \item Attribute \uncover<2->{-- no}
+  \item Class label \uncover<2->{-- no}
+  \item Separators \uncover<3->{-- yes, but ambiguous}
+  \item Separator labels \uncover<3->{-- yes, depend on Separators}
+  \item Decision tree \uncover<3->{-- yes, depend on all above}
 \end{itemize}
 
 Which to infer?
+
+\end{frame}
+
+\begin{frame}{Inferring Separation Criteria}
+
+Splitting:
+\begin{itemize}
+  \item Equality, (Eq x) $\Rightarrow$ ($==$ x): Cat, Int
+  \item Set membership, (Eq x) $\Rightarrow$ (`elem` [x]): \{Cat, Dog\}, Int
+  \item Ordering (Ord x) $\Rightarrow$ ($<$ x): Int, Double
+\end{itemize}
+\begin{itemize}
+  \item Tupling: (Double, Double)  -- just cartesian product
+  \item Distance: (Double, Double) -- euclidian space
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{The Rules}
+
+> class GenSep attribute separator | attr -> separator
+> instance GenSep Char (SepSet Char)
+> instance GenSep Double (SepOrd Double)
+> instance GenSep Float (SepOrd Float)
+> instance GenSep Int (SepOrd Int)
+> instance GenSep Integer (SepOrd Integer)
+> instance GenSep [Char] (SepSet [Char])
+> instance Integral a => GenSep (Ratio a) (SepOrd (Ratio a))
+> instance (GenSep a xa, GenSep b xb) => GenSep (a, b) (Either xa xb)
 
 \end{frame}
 
@@ -175,12 +205,15 @@ Which to infer?
 \begin{frame}{Conclusion}
   What did we learn:
   \begin{itemize}
-    \item Parallelisation
-    \item Optimization
+    \item Parallelising in Haskell
+    \item Optimizing in Haskell
+    \item Designing an easy to use interface for an algorithm in Haskell
   \end{itemize}
   What did we contribute:
   \begin{itemize}
-    \item
+    \item Implementations of algorithms
+    \item A lean interface for other algorithm implementations to crystallize on
+    \item Hopefully the beginning of a modular data analysis/learning framework that promotes reuse and compatibility
   \end{itemize}
 \end{frame}
 
