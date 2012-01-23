@@ -212,8 +212,7 @@ Splitting:
   What did we contribute:
   \begin{itemize}
     \item Implementations of algorithms
-    \item A lean interface for other algorithm implementations to crystallize on
-    \item Hopefully the beginning of a modular data analysis/learning framework that promotes reuse and compatibility
+    \item A lean interface for other algorithm implementations to crystallize on. Hopefully the beginning of a modular data analysis/learning framework that promotes reuse and compatibility
   \end{itemize}
 \end{frame}
 
