@@ -142,14 +142,20 @@ Which to infer?
 \subsubsection{Specialization}
 \subsubsection{Parallelization}
 \begin{frame}{Apriori (3)}
->  {-"\uncover<2->{\{"-}-# SPECIALIZE frequencyBy ::
->    (Set Int -> Set Int -> Bool) ->
->    [Set Int] -> [Set Int] -> [(Set Int, Int)] #-{-"\}}"-}
->  frequencyBy :: {-"\uncover<3->{"-}(NFData a) => {-"}"-} 
+>  type Transaction a = Set a
+>  type Items a = Set a
+>  rules :: Item a => [Transaction a] -> Items a -> 
+>    (Map (Items a) Int -> Map (Items a) Int) -> 
+>    Map (Items a, Items a) Double
+\pause
+>  {-"\uncover<3->{\{"-}-# SPECIALIZE frequencyBy ::
+>    (Items Int -> Items Int -> Bool) ->
+>    [Items Int] -> [Transaction Int] -> [(Items Int, Int)] #-{-"\}}"-}
+>  frequencyBy :: {-"\uncover<4->{"-}(NFData a) => {-"}"-} 
 >    (a -> b -> Bool) -> [a] -> [b] -> [(a,Int)]
 >  frequencyBy f as bs = 
 >    map (\ a ->(a, foldr (\ b -> if f a b then (+) 1 else id) 0 bs)) as
->      {-"\uncover<3->{"-}`using` parListChunk 100 rdeepseq{-"}"-}
+>      {-"\uncover<4->{"-}`using` parListChunk 100 rdeepseq{-"}"-}
 \end{frame}
 
 \begin{frame}{Parallelization}
