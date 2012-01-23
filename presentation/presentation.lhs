@@ -28,46 +28,9 @@
 
 \frame{\titlepage}
 
-\section{Introducation}
+\section{Introduction}
 \begin{frame}{Introduction}
   \tableofcontents
-\end{frame}
-
-\section{Apriori}
-\subsection{How does Apriori work?}
-\begin{frame}{Apriori (1)}
-  \begin{center}\includegraphics[scale=0.5]{apriori-2}\end{center}
-\end{frame}
-
-\begin{frame}{Apriori (2)}
-  \begin{center}\includegraphics[scale=0.5]{apriori-3}\end{center}
-\end{frame}
-
-\subsection{Interesting implementation details}
-\subsubsection{Specialization}
-\subsubsection{Parallelization}
-\begin{frame}{Apriori (3)}
->  {-"\uncover<2->{\{"-}-# SPECIALIZE frequencyBy ::
->    (Set Int -> Set Int -> Bool) ->
->    [Set Int] -> [Set Int] -> [(Set Int, Int)] #-{-"\}}"-}
->  frequencyBy :: {-"\uncover<3->{"-}(NFData a) => {-"}"-} 
->    (a -> b -> Bool) -> [a] -> [b] -> [(a,Int)]
->  frequencyBy f as bs = 
->    map (\ a ->(a, foldr (\ b -> if f a b then (+) 1 else id) 0 bs)) as
->      {-"\uncover<3->{"-}`using` parListChunk 100 rdeepseq{-"}"-}
-\end{frame}
-
-\begin{frame}{Parallelization}
->  import Control.Parallel.Strategies
->  
->  using :: a -> Strategy a -> a
->  
->  r0 :: Strategy a
->  rseq :: Strategy a
->  rdeepseq :: NFData a => Strategy a
-> 
->  parList :: Strategy a -> Strategy [a]
->  parListChunk :: Int -> Strategy a -> Strategy [a]
 \end{frame}
 
 \section{Decision Trees}
@@ -165,12 +128,54 @@ Which to infer?
 \includegraphics[width=\textwidth]{iristree.pdf}
 \end{frame}
 
-\section{Naive Bayes}
-\begin{frame}
+\section{Apriori}
+\subsection{How does Apriori work?}
+\begin{frame}{Apriori (1)}
+  \begin{center}\includegraphics[scale=0.5]{apriori-2}\end{center}
 \end{frame}
 
-\section{conclusion}
+\begin{frame}{Apriori (2)}
+  \begin{center}\includegraphics[scale=0.5]{apriori-3}\end{center}
+\end{frame}
+
+\subsection{Interesting implementation details}
+\subsubsection{Specialization}
+\subsubsection{Parallelization}
+\begin{frame}{Apriori (3)}
+>  {-"\uncover<2->{\{"-}-# SPECIALIZE frequencyBy ::
+>    (Set Int -> Set Int -> Bool) ->
+>    [Set Int] -> [Set Int] -> [(Set Int, Int)] #-{-"\}}"-}
+>  frequencyBy :: {-"\uncover<3->{"-}(NFData a) => {-"}"-} 
+>    (a -> b -> Bool) -> [a] -> [b] -> [(a,Int)]
+>  frequencyBy f as bs = 
+>    map (\ a ->(a, foldr (\ b -> if f a b then (+) 1 else id) 0 bs)) as
+>      {-"\uncover<3->{"-}`using` parListChunk 100 rdeepseq{-"}"-}
+\end{frame}
+
+\begin{frame}{Parallelization}
+>  import Control.Parallel.Strategies
+>  
+>  using :: a -> Strategy a -> a
+>  
+>  r0 :: Strategy a
+>  rseq :: Strategy a
+>  rdeepseq :: NFData a => Strategy a
+> 
+>  parList :: Strategy a -> Strategy [a]
+>  parListChunk :: Int -> Strategy a -> Strategy [a]
+\end{frame}
+
+\section{Conclusion}
 \begin{frame}{Conclusion}
+  What did we learn:
+  \begin{itemize}
+    \item Parallelisation
+    \item Optimization
+  \end{itemize}
+  What did we contribute:
+  \begin{itemize}
+    \item
+  \end{itemize}
 \end{frame}
 
 \end{document}
