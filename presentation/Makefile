@@ -4,7 +4,7 @@ preview : presentation.pdf
 	open -a /Applications/Skim.app presentation.pdf
 
 presentation.pdf : presentation.tex
-	pdflatex presentation.tex && pdflatex -synctex=1 presentation.tex
+	pdflatex presentation.tex </dev/null && pdflatex -synctex=1 presentation.tex </dev/null
 
 presentation.tex : presentation.lhs
 	lhs2TeX --agda -o presentation.tex presentation.lhs
