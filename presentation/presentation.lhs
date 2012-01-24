@@ -28,9 +28,45 @@
 
 \frame{\titlepage}
 
-\section{Introduction}
-\begin{frame}{Introduction}
+\begin{frame}{Overview}
   \tableofcontents
+\end{frame}
+
+
+\section{Introduction}
+\begin{frame}{Our idea}
+Data mining and machine learning in Haskell
+
+\begin{itemize}
+\item No machine learning category on hackage, few packages in Data Mining/Datamining
+\item Few packages, inconsistent
+\end{itemize}
+
+Why marry Haskell and induction algorithms (machine learning, data mining)?
+
+\begin{itemize}
+\item Machine learning: trial and error, small changes
+\item Haskell: quick prototyping, programming style closer to the theory
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{What's missing}
+
+A framework to get people started, say, hInduce
+\uncover<2->{
+\begin{itemize}
+\item hinduce-classifier
+\item hinduce-classifier-decisiontree
+\item {\color{gray}hinduce-classifier-naivebayes}
+\item {\color{gray}hinduce-classifier-...}
+\item {\color{gray}hinduce-cluster}
+\item {\color{gray}hinduce-cluster-...}
+\item hinduce-missingh
+\item hinduce-examples
+}
+\end{itemize}
+
 \end{frame}
 
 \section{Decision Trees}
@@ -78,6 +114,7 @@ Tasks
 \end{itemize}
 \end{frame}
 
+\subsection{The algorithm}
 \begin{frame}{Learning}
 
 \begin{itemize}
@@ -94,6 +131,7 @@ Tasks
 
 \end{frame}
 
+\subsection{Taming the Types -- A Nice Interface}
 \begin{frame}{Data Types}
 
 Many types
@@ -139,6 +177,7 @@ Splitting:
 \end{frame}
 
 \begin{frame}{Example Tree}
+> > let irisAttrs (Iris p q r s _) = ((p,q), (r,s))
 > > buildDTree irisAttrs irisClass iris
 > Node (Right (Left (SepOrd 2.45))) [(False,Node (Right (Right 
 > (SepOrd 1.75))) [(False,Node (Right (Left (SepOrd 4.85))) [
@@ -158,7 +197,45 @@ Splitting:
 \includegraphics[width=\textwidth]{iristree.pdf}
 \end{frame}
 
+\subsection{Evaluating classifiers}
+\begin{frame}{Evaluating a classifier}
+> > let c = buildDTree irisAttrs irisClass $ oddIx iris 
+>   in dt $ confusion' c $ map (irisAttrs &&& irisClass) $ evenIx iris
+\scriptsize\begin{verbatim}
+Table: Confusion Matrix
+          || -->Actual
+Predicted \/             Setosa           Versicolor           Virginica
+      Setosa 0.3333333333333333                                         
+  Versicolor                     0.30666666666666664              4.0e-2
+   Virginica                    2.666666666666667e-2 0.29333333333333333
+\end{verbatim}
+\end{frame}
+
+\subsection{What's to be improved}
+\begin{frame}{What's to be improved}
+\begin{itemize}
+  \item Generate custom Either-like data types, TH
+  \item Improve the algorithm:
+  \begin{itemize}
+    \item Use cross-validation
+    \item Implement back-tracking, possibly using graph growing library
+    \item Implement pruning
+\end{itemize}
+\end{itemize}
+\end{frame}
+
 \section{Apriori}
+
+\begin{frame}{Association rule mining}
+  \{Beer\} \To \{Diapers\}
+\uncover<2->{
+
+  Evidence
+
+  \begin{center}\includegraphics[scale=0.5]{itemset-party}\end{center}
+}
+\end{frame}
+
 \subsection{How does Apriori work?}
 \begin{frame}{Apriori (1)}
   \begin{center}\includegraphics[scale=0.5]{apriori-2}\end{center}
